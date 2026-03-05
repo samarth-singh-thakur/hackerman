@@ -302,9 +302,18 @@ fun GhostWatcherApp() {
 
             Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+            verticalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier.fillMaxSize()
         ) {
+            // Top spacer to push content down
+            Spacer(Modifier.weight(0.3f))
+            
+            // Main content area
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.weight(1f)
+            ) {
             // Hide title and status when photo is shown
             if (imageBytes == null) {
                 Text(
@@ -343,56 +352,52 @@ fun GhostWatcherApp() {
                     scope.launch {
                         loading = true
                         
-                        // Hardware enumeration sequence
-                        status = "REMOTE HOST CONNECTED"
-                        delay(600)
+                        // Start API call immediately in parallel
+                        var apiResult: Result<ByteArray>? = null
+                        val apiJob = launch(Dispatchers.IO) {
+                            apiResult = fetchGhostWatcherFrame()
+                        }
                         
-                        status = "DEVICE ID: A1:3F:8D:72"
-                        delay(500)
+                        // Fast terminal-like sequence while API is loading
+                        val messages = listOf(
+                            "REMOTE HOST CONNECTED",
+                            "DEVICE ID: A1:3F:8D:72",
+                            "Searching peripherals...",
+                            "[✓] microphone",
+                            "[✓] network adapter",
+                            "[✓] camera device detected",
+                            ">>> Initializing SSH connection...",
+                            ">>> SSH tunnel established [192.168.1.9:22]",
+                            ">>> Bypassing firewall protocols...",
+                            ">>> Installing malicious script [payload.sh]",
+                            ">>> Executing remote code injection...",
+                            ">>> Scanning network topology...",
+                            ">>> TARGET ACQUIRED // Intercepting feed..."
+                        )
                         
-                        status = "Searching peripherals..."
-                        delay(700)
-                        playReelLikeBeat()
+                        // Show messages rapidly (terminal-like)
+                        launch {
+                            playReelLikeBeat()
+                            for (msg in messages) {
+                                status = msg
+                                delay(80) // Fast terminal output
+                            }
+                            // Keep showing last message until API completes
+                            while (apiJob.isActive) {
+                                delay(100)
+                            }
+                        }
                         
-                        status = "[✓] microphone"
-                        delay(400)
-                        
-                        status = "[✓] network adapter"
-                        delay(400)
-                        
-                        status = "[✓] camera device detected"
-                        delay(600)
-                        
-                        status = ">>> Initializing SSH connection..."
-                        delay(400)
-                        
-                        status = ">>> SSH tunnel established [192.168.1.9:22]"
-                        delay(350)
-                        
-                        status = ">>> Bypassing firewall protocols..."
-                        delay(300)
-                        
-                        status = ">>> Installing malicious script [payload.sh]"
-                        delay(450)
-                        
-                        status = ">>> Executing remote code injection..."
-                        delay(350)
-                        
-                        status = ">>> Scanning network topology..."
-                        delay(300)
-                        
-                        status = ">>> TARGET ACQUIRED // Intercepting feed..."
-                        delay(250)
-                        
-                        val result = fetchGhostWatcherFrame()
-                        result.fold(
-                            onSuccess = {
-                                imageBytes = it
+                        // Wait for API result
+                        apiJob.join()
+                        apiResult?.fold(
+                            onSuccess = { bytes ->
+                                imageBytes = bytes
                                 val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
                                 status = "REMOTE SNAPSHOT ACQUIRED\nTimestamp: $timestamp"
                             },
-                            onFailure = {
-                                status = "✗ OPERATION FAILED // ${it.message}"
+                            onFailure = { error ->
+                                status = "✗ OPERATION FAILED // ${error.message}"
                             }
                         )
                         loading = false
@@ -417,18 +422,7 @@ fun GhostWatcherApp() {
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
                 imageBytes != null -> {
-                    // Emphasize photo - make it larger and more prominent
-                    AsyncImage(
-                        model = imageBytes,
-                        contentDescription = "GhostWatcher feed image",
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .clip(RoundedCornerShape(12.dp))
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    // Show status below photo
+                    // Show timestamp just above photo
                     Text(
                         text = status,
                         color = Color(0xFF72FFA9),
@@ -436,11 +430,25 @@ fun GhostWatcherApp() {
                         fontFamily = FontFamily.Monospace,
                         modifier = Modifier.alpha(0.8f)
                     )
+                    Spacer(Modifier.height(12.dp))
+                    // Image with rounded corners
+                    AsyncImage(
+                        model = imageBytes,
+                        contentDescription = "GhostWatcher feed image",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(24.dp))
+                    )
                 }
                 else -> {
                     Spacer(Modifier.height(22.dp))
                 }
             }
+            }
+            
+            // Bottom spacer
+            Spacer(Modifier.weight(0.3f))
             }
         }
     }
