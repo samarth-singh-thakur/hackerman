@@ -2,6 +2,7 @@ package com.hackerman.ghostwatcher.ui
 
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.os.Build
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -12,15 +13,22 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,12 +56,24 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
-private const val GHOSTWATCHER_URL = "http://127.0.0.1:8000/ghostwatcher"
+private val GHOSTWATCHER_URL: String
+    get() = if (isEmulator()) "http://192.168.1.9:8000/ghostwatcher " else "http://192.168.1.9:8000/ghostwatcher "
+
+private fun isEmulator(): Boolean {
+    return Build.FINGERPRINT.startsWith("generic")
+            || Build.FINGERPRINT.startsWith("unknown")
+            || Build.MODEL.contains("google_sdk")
+            || Build.MODEL.contains("Emulator")
+            || Build.MODEL.contains("Android SDK built for x86")
+            || Build.MANUFACTURER.contains("Genymotion")
+            || (Build.BRAND.startsWith("generic") && Build.DEVICE.startsWith("generic"))
+            || "google_sdk" == Build.PRODUCT
+}
 
 @Composable
 fun GhostWatcherApp() {
     var imageBytes by remember { mutableStateOf<ByteArray?>(null) }
-    var status by remember { mutableStateOf("Tap START to summon the fsociety ghost feed") }
+    var status by remember { mutableStateOf("SYSTEM READY // Awaiting authorization...") }
     var loading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
@@ -87,6 +107,28 @@ fun GhostWatcherApp() {
             )
             .padding(20.dp)
     ) {
+        // Close button in top-left when image is displayed
+        if (imageBytes != null) {
+            IconButton(
+                onClick = {
+                    imageBytes = null
+                    status = "SYSTEM READY // Awaiting authorization..."
+                },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(8.dp)
+                    .size(48.dp)
+                    .background(Color(0xFF11D46E), CircleShape)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Close",
+                    tint = Color.Black,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
@@ -107,20 +149,44 @@ fun GhostWatcherApp() {
             )
             Spacer(Modifier.height(24.dp))
 
-            Button(
+            // Only show HACK button when no image is displayed and not loading
+            if (imageBytes == null && !loading) {
+                Button(
                 onClick = {
                     scope.launch {
                         loading = true
-                        status = "Intercepting feed from $GHOSTWATCHER_URL"
+                        
+                        // Cinematic hacking sequence with faster delays
+                        status = ">>> Initializing SSH connection..."
+                        delay(400)
                         playReelLikeBeat()
+                        
+                        status = ">>> SSH tunnel established [192.168.1.9:22]"
+                        delay(350)
+                        
+                        status = ">>> Bypassing firewall protocols..."
+                        delay(300)
+                        
+                        status = ">>> Installing malicious script [payload.sh]"
+                        delay(450)
+                        
+                        status = ">>> Executing remote code injection..."
+                        delay(350)
+                        
+                        status = ">>> Scanning network topology..."
+                        delay(300)
+                        
+                        status = ">>> TARGET ACQUIRED // Intercepting feed..."
+                        delay(250)
+                        
                         val result = fetchGhostWatcherFrame()
                         result.fold(
                             onSuccess = {
                                 imageBytes = it
-                                status = "Signal locked. Ghost frame rendered."
+                                status = "✓ BREACH SUCCESSFUL // Ghost frame extracted"
                             },
                             onFailure = {
-                                status = "Feed error: ${it.message}"
+                                status = "✗ OPERATION FAILED // ${it.message}"
                             }
                         )
                         loading = false
@@ -134,8 +200,9 @@ fun GhostWatcherApp() {
                     .scale(pulse)
                     .fillMaxWidth(0.55f)
                     .height(54.dp)
-            ) {
-                Text("START", fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+                ) {
+                    Text("HACK", fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+                }
             }
 
             Spacer(Modifier.height(22.dp))
