@@ -9,6 +9,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,6 +21,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -32,7 +37,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -42,9 +49,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,6 +65,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlin.random.Random
 
 private val GHOSTWATCHER_URL: String
     get() = if (isEmulator()) "http://192.168.1.9:8000/ghostwatcher " else "http://192.168.1.9:8000/ghostwatcher "
@@ -76,6 +90,25 @@ fun GhostWatcherApp() {
     var status by remember { mutableStateOf("SYSTEM READY // Awaiting authorization...") }
     var loading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    
+    // Terminal logs state
+    val terminalLogs = remember { mutableStateListOf<String>() }
+    val listState = rememberLazyListState()
+    
+    // Blinking cursor state
+    var cursorVisible by remember { mutableStateOf(true) }
+    
+    // System messages
+    val systemMessages = listOf(
+        "sys.kernel: process monitor active",
+        "net.tcp: connection pool initialized",
+        "crypto.aes: encryption module loaded",
+        "mem.alloc: buffer cache optimized",
+        "io.disk: read/write operations nominal",
+        "net.firewall: packet filter enabled",
+        "sys.daemon: background services running",
+        "auth.token: session key refreshed"
+    )
 
     val glitch = rememberInfiniteTransition(label = "glitch")
     val pulse by glitch.animateFloat(
@@ -96,6 +129,42 @@ fun GhostWatcherApp() {
         ),
         label = "shimmer"
     )
+    
+    // Scan grid animation
+    val scanOffset by glitch.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "scan"
+    )
+    
+    // Cursor blink effect
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(530)
+            cursorVisible = !cursorVisible
+        }
+    }
+    
+    // Ambient terminal logs
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(Random.nextLong(1500, 4000))
+            val msg = systemMessages.random()
+            val timestamp = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())
+            terminalLogs.add("[$timestamp] $msg")
+            if (terminalLogs.size > 8) {
+                terminalLogs.removeAt(0)
+            }
+            // Auto-scroll to bottom
+            if (terminalLogs.isNotEmpty()) {
+                listState.animateScrollToItem(terminalLogs.size - 1)
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -105,10 +174,112 @@ fun GhostWatcherApp() {
                     colors = listOf(Color(0xFF030604), Color(0xFF08110B), Color(0xFF000000))
                 )
             )
-            .padding(20.dp)
     ) {
-        // Close button in top-left when image is displayed
-        if (imageBytes != null) {
+        // Scan grid animation background - hide when photo is shown
+        if (imageBytes == null) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val gridSpacing = 40.dp.toPx()
+                val scanLineY = size.height * scanOffset
+                
+                // Horizontal grid lines
+                for (i in 0..(size.height / gridSpacing).toInt()) {
+                    val y = i * gridSpacing
+                    val alpha = if (kotlin.math.abs(y - scanLineY) < 60) 0.3f else 0.08f
+                    drawLine(
+                        color = Color(0xFF11D46E).copy(alpha = alpha),
+                        start = Offset(0f, y),
+                        end = Offset(size.width, y),
+                        strokeWidth = 1f,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f))
+                    )
+                }
+                
+                // Vertical grid lines
+                for (i in 0..(size.width / gridSpacing).toInt()) {
+                    val x = i * gridSpacing
+                    drawLine(
+                        color = Color(0xFF11D46E).copy(alpha = 0.08f),
+                        start = Offset(x, 0f),
+                        end = Offset(x, size.height),
+                        strokeWidth = 1f,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f))
+                    )
+                }
+                
+                // Scan line
+                drawLine(
+                    color = Color(0xFF11D46E).copy(alpha = 0.6f),
+                    start = Offset(0f, scanLineY),
+                    end = Offset(size.width, scanLineY),
+                    strokeWidth = 2f
+                )
+            }
+            
+            // Terminal logs in background
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 16.dp)
+                    .alpha(0.25f)
+            ) {
+                items(terminalLogs) { log ->
+                    Text(
+                        text = log,
+                        color = Color(0xFF72FFA9),
+                        fontSize = 9.sp,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(vertical = 1.dp)
+                    )
+                }
+            }
+        }
+        
+        // Top right UI elements - always visible
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Signal bars
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                repeat(4) { index ->
+                    Box(
+                        modifier = Modifier
+                            .width(3.dp)
+                            .height((8 + index * 3).dp)
+                            .background(
+                                Color(0xFF11D46E).copy(alpha = if (index < 3) 1f else 0.4f)
+                            )
+                    )
+                }
+            }
+            
+            // Latency
+            Text(
+                text = "${Random.nextInt(12, 28)}ms",
+                color = Color(0xFF72FFA9),
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace
+            )
+            
+            // Encryption label
+            Text(
+                text = "AES-256",
+                color = Color(0xFF11D46E),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .background(Color(0xFF11D46E).copy(alpha = 0.15f), RoundedCornerShape(3.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            )
+        }
+        // Main content with padding
+        Box(modifier = Modifier.padding(20.dp).fillMaxSize()) {
+            // Close button in top-left when image is displayed
+            if (imageBytes != null) {
             IconButton(
                 onClick = {
                     imageBytes = null
@@ -127,27 +298,43 @@ fun GhostWatcherApp() {
                     modifier = Modifier.size(24.dp)
                 )
             }
-        }
+            }
 
-        Column(
+            Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
             modifier = Modifier.fillMaxSize()
         ) {
-            Text(
-                text = "MR. ROBOT // GHOSTWATCHER",
-                color = Color(0xFF72FFA9),
-                fontSize = 24.sp,
-                fontWeight = FontWeight.ExtraBold,
-                modifier = Modifier.alpha(shimmer)
-            )
-            Spacer(Modifier.height(18.dp))
-            Text(
-                text = status,
-                color = Color(0xFFB6FFD2),
-                fontSize = 14.sp
-            )
-            Spacer(Modifier.height(24.dp))
+            // Hide title and status when photo is shown
+            if (imageBytes == null) {
+                Text(
+                    text = "MR. ROBOT // GHOSTWATCHER",
+                    color = Color(0xFF72FFA9),
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.alpha(shimmer)
+                )
+                Spacer(Modifier.height(18.dp))
+                
+                // Status with blinking cursor
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = status,
+                        color = Color(0xFFB6FFD2),
+                        fontSize = 14.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    if (!loading) {
+                        Text(
+                            text = "█",
+                            color = Color(0xFF11D46E),
+                            fontSize = 14.sp,
+                            modifier = Modifier.alpha(if (cursorVisible) 1f else 0f)
+                        )
+                    }
+                }
+                Spacer(Modifier.height(24.dp))
+            }
 
             // Only show HACK button when no image is displayed and not loading
             if (imageBytes == null && !loading) {
@@ -156,10 +343,28 @@ fun GhostWatcherApp() {
                     scope.launch {
                         loading = true
                         
-                        // Cinematic hacking sequence with faster delays
+                        // Hardware enumeration sequence
+                        status = "REMOTE HOST CONNECTED"
+                        delay(600)
+                        
+                        status = "DEVICE ID: A1:3F:8D:72"
+                        delay(500)
+                        
+                        status = "Searching peripherals..."
+                        delay(700)
+                        playReelLikeBeat()
+                        
+                        status = "[✓] microphone"
+                        delay(400)
+                        
+                        status = "[✓] network adapter"
+                        delay(400)
+                        
+                        status = "[✓] camera device detected"
+                        delay(600)
+                        
                         status = ">>> Initializing SSH connection..."
                         delay(400)
-                        playReelLikeBeat()
                         
                         status = ">>> SSH tunnel established [192.168.1.9:22]"
                         delay(350)
@@ -183,7 +388,8 @@ fun GhostWatcherApp() {
                         result.fold(
                             onSuccess = {
                                 imageBytes = it
-                                status = "✓ BREACH SUCCESSFUL // Ghost frame extracted"
+                                val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
+                                status = "REMOTE SNAPSHOT ACQUIRED\nTimestamp: $timestamp"
                             },
                             onFailure = {
                                 status = "✗ OPERATION FAILED // ${it.message}"
@@ -205,20 +411,36 @@ fun GhostWatcherApp() {
                 }
             }
 
-            Spacer(Modifier.height(22.dp))
-
             when {
-                loading -> CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                imageBytes != null -> AsyncImage(
-                    model = imageBytes,
-                    contentDescription = "GhostWatcher feed image",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(260.dp)
-                        .clip(RoundedCornerShape(22.dp))
-                        .alpha(shimmer)
-                )
+                loading -> {
+                    Spacer(Modifier.height(22.dp))
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                }
+                imageBytes != null -> {
+                    // Emphasize photo - make it larger and more prominent
+                    AsyncImage(
+                        model = imageBytes,
+                        contentDescription = "GhostWatcher feed image",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    // Show status below photo
+                    Text(
+                        text = status,
+                        color = Color(0xFF72FFA9),
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.alpha(0.8f)
+                    )
+                }
+                else -> {
+                    Spacer(Modifier.height(22.dp))
+                }
+            }
             }
         }
     }
